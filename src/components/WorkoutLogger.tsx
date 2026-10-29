@@ -68,12 +68,11 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({
     const setsToCreate = lastLog?.loggedExercise.sets.length || 3;
 
     for (let i = 1; i <= Math.min(setsToCreate, 4); i++) {
-      const prevSet = lastLog?.loggedExercise.sets[i - 1];
       initialSets.push({
         id: `set-${Date.now()}-${i}`,
         setNumber: i,
-        weight: prevSet ? prevSet.weight : 0,
-        reps: prevSet ? prevSet.reps : 0,
+        weight: 0,
+        reps: 0,
         completed: false,
       });
     }
@@ -127,7 +126,6 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({
     setLoggedExercises((prev) => {
       const updated = [...prev];
       const target = { ...updated[exerciseIndex] };
-      const lastSet = target.sets[target.sets.length - 1];
       const newSetNumber = target.sets.length + 1;
 
       target.sets = [
@@ -135,8 +133,8 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({
         {
           id: `set-${Date.now()}-${newSetNumber}`,
           setNumber: newSetNumber,
-          weight: lastSet ? lastSet.weight : 0,
-          reps: lastSet ? lastSet.reps : 0,
+          weight: 0,
+          reps: 0,
           completed: false,
         },
       ];
@@ -489,7 +487,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({
                                     e.target.value === '' ? 0 : Number(e.target.value)
                                   )
                                 }
-                                placeholder="0"
+                                placeholder=""
                                 className="w-20 bg-slate-950 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-center font-bold text-white text-sm focus:outline-none focus:border-blue-500 transition"
                               />
                             </td>
@@ -509,7 +507,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({
                                       e.target.value === '' ? 0 : Number(e.target.value)
                                     )
                                   }
-                                  placeholder="0"
+                                  placeholder=""
                                   className="w-16 bg-slate-950 border border-slate-700/80 rounded-lg px-2 py-1.5 text-center font-bold text-white text-sm focus:outline-none focus:border-blue-500 transition"
                                 />
                                 {overloadBadge}
