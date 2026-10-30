@@ -6,8 +6,7 @@ import {
   ChevronUp, 
   Dumbbell, 
   Layers, 
-  Flame, 
-  Sparkles 
+  Flame 
 } from 'lucide-react';
 import { useWorkout } from '../context/WorkoutContext';
 
@@ -20,7 +19,7 @@ export const WorkoutHistory: React.FC<WorkoutHistoryProps> = ({
   onLogNewWorkout,
   onSelectExerciseForProgress,
 }) => {
-  const { workouts, deleteWorkout, getExerciseById, unit, loadSampleData } = useWorkout();
+  const { workouts, deleteWorkout, getExerciseById, unit } = useWorkout();
   const [expandedWorkoutId, setExpandedWorkoutId] = useState<string | null>(
     workouts[0]?.id || null
   );
@@ -69,19 +68,13 @@ export const WorkoutHistory: React.FC<WorkoutHistoryProps> = ({
             <p className="text-xs text-slate-400 max-w-sm mx-auto mb-5">
               Once you finish logging your first workout, it will show up here along with all sets and progressive metrics.
             </p>
-            <div className="flex flex-wrap items-center justify-center gap-3">
+            <div className="flex items-center justify-center">
               <button
                 onClick={onLogNewWorkout}
-                className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-blue-600/30 transition"
+                className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center gap-2"
               >
-                Log First Workout
-              </button>
-              <button
-                onClick={loadSampleData}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-4 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-2"
-              >
-                <Sparkles size={16} className="text-yellow-400" />
-                <span>Load Demo Progression Data</span>
+                <Dumbbell size={16} />
+                <span>Log First Workout</span>
               </button>
             </div>
           </div>

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Search, Dumbbell, LineChart, Trash2, X, Check, Filter } from 'lucide-react';
+import { Plus, Search, Dumbbell, LineChart, Trash2, X, Check, Filter, Pencil, FileText } from 'lucide-react';
 import { useWorkout } from '../context/WorkoutContext';
-import { MuscleGroup } from '../types';
+import { Exercise, MuscleGroup } from '../types';
 import { MUSCLE_GROUPS } from '../data/defaultExercises';
 
 interface ExerciseLibraryProps {
@@ -13,7 +13,7 @@ export const ExerciseLibrary: React.FC<ExerciseLibraryProps> = ({
   onSelectForProgress,
   onAddExerciseToActiveWorkout,
 }) => {
-  const { exercises, addExercise, deleteExercise, getExerciseHistory } = useWorkout();
+  const { exercises, addExercise, updateExercise, deleteExercise, getExerciseHistory } = useWorkout();
   const [selectedMuscle, setSelectedMuscle] = useState<MuscleGroup | 'All'>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -22,6 +22,31 @@ export const ExerciseLibrary: React.FC<ExerciseLibraryProps> = ({
   const [newExerciseName, setNewExerciseName] = useState('');
   const [newExerciseMuscle, setNewExerciseMuscle] = useState<MuscleGroup>('Chest');
   const [newExerciseNotes, setNewExerciseNotes] = useState('');
+
+  // Form states for editing custom exercise
+  const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editMuscle, setEditMuscle] = useState<MuscleGroup>('Chest');
+  const [editNotes, setEditNotes] = useState('');
+
+  const handleOpenEdit = (exercise: Exercise) => {
+    setEditingExercise(exercise);
+    setEditName(exercise.name);
+    setEditMuscle(exercise.muscleGroup);
+    setEditNotes(exercise.notes || '');
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingExercise || !editName.trim()) return;
+
+    updateExercise(editingExercise.id, {
+      name: editName.trim(),
+      muscleGroup: editMuscle,
+      notes: editNotes.trim() || undefined,
+    });
+    setEditingExercise(null);
+  };
 
   const filteredExercises = useMemo(() => {
     return exercises.filter((ex) => {
@@ -193,7 +218,10 @@ export const ExerciseLibrary: React.FC<ExerciseLibraryProps> = ({
                   </div>
 
                   {exercise.notes && (
-                    <p className="text-xs text-slate-400 mb-3 italic">"{exercise.notes}"</p>
+                    <div className="flex items-start gap-1.5 text-xs text-amber-300/90 bg-amber-950/20 border border-amber-900/40 px-2.5 py-1.5 rounded-xl mb-3">
+                      <FileText size={13} className="text-amber-400 mt-0.5 shrink-0" />
+                      <span className="italic">"{exercise.notes}"</span>
+                    </div>
                   )}
                 </div>
 
@@ -222,17 +250,26 @@ export const ExerciseLibrary: React.FC<ExerciseLibraryProps> = ({
                   </div>
 
                   {exercise.isCustom && (
-                    <button
-                      onClick={() => {
-                        if (confirm(`Delete custom exercise "${exercise.name}"?`)) {
-                          deleteExercise(exercise.id);
-                        }
-                      }}
-                      className="text-slate-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-red-950/20 transition"
-                      title="Delete custom exercise"
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleOpenEdit(exercise)}
+                        className="text-slate-400 hover:text-blue-400 p-1.5 rounded-lg hover:bg-blue-950/30 transition"
+                        title="Edit custom exercise & setup notes"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete custom exercise "${exercise.name}"?`)) {
+                            deleteExercise(exercise.id);
+                          }
+                        }}
+                        className="text-slate-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-red-950/20 transition"
+                        title="Delete custom exercise"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -293,15 +330,16 @@ export const ExerciseLibrary: React.FC<ExerciseLibraryProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
-                  Form Cues / Notes (Optional)
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                  <FileText size={14} className="text-blue-400" />
+                  <span>Exercise Setup Notes & Cues (Optional)</span>
                 </label>
-                <input
-                  type="text"
-                  placeholder="e.g. 30 degree incline, slow 3s eccentric"
+                <textarea
+                  rows={2}
+                  placeholder="e.g. Pin on setting 5, 30 degree incline, slow 3s eccentric"
                   value={newExerciseNotes}
                   onChange={(e) => setNewExerciseNotes(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition resize-none"
                 />
               </div>
 
@@ -320,6 +358,93 @@ export const ExerciseLibrary: React.FC<ExerciseLibraryProps> = ({
                 >
                   <Check size={16} />
                   <span>Save Exercise</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Custom Exercise Modal */}
+      {editingExercise && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+            <button
+              onClick={() => setEditingExercise(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition"
+            >
+              <X size={20} />
+            </button>
+
+            <h3 className="text-lg font-bold text-white mb-1 flex items-center gap-2">
+              <Pencil size={20} className="text-blue-400" />
+              Edit Custom Exercise
+            </h3>
+            <p className="text-xs text-slate-400 mb-5">
+              Update the name, category, or personal setup notes/cues for this exercise.
+            </p>
+
+            <form onSubmit={handleSaveEdit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Exercise Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. Incline Smith Machine Press"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                  Target Muscle Group *
+                </label>
+                <select
+                  value={editMuscle}
+                  onChange={(e) => setEditMuscle(e.target.value as MuscleGroup)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                >
+                  {MUSCLE_GROUPS.map((g) => (
+                    <option key={g} value={g}>
+                      {g}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                  <FileText size={14} className="text-blue-400" />
+                  <span>Exercise Setup Notes & Cues (Optional)</span>
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="e.g. Seat pin setting 4, bench at 30 degrees, slow 3s eccentric, focus on chest stretch"
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setEditingExercise(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!editName.trim()}
+                  className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-blue-600/30 transition"
+                >
+                  <Check size={16} />
+                  <span>Save Changes</span>
                 </button>
               </div>
             </form>

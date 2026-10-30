@@ -44,6 +44,13 @@ export interface Workout {
 
 export type WeightUnit = 'lbs' | 'kg';
 
+export interface ActiveWorkoutDraft {
+  title: string;
+  date: string;
+  notes: string;
+  exercises: LoggedExercise[];
+}
+
 export interface ExerciseHistoryPoint {
   date: string;
   formattedDate: string;

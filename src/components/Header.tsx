@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Dumbbell, Settings, Timer, Download, Upload, Sparkles, Trash2, X, Check } from 'lucide-react';
+import { Dumbbell, Settings, Timer, Download, Upload, Trash2, X, Check } from 'lucide-react';
 import { useWorkout } from '../context/WorkoutContext';
 import { RestTimer } from './RestTimer';
 
@@ -8,7 +8,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onSelectTab }) => {
-  const { unit, setUnit, exportData, importData, loadSampleData, clearAllData, workouts } = useWorkout();
+  const { unit, setUnit, exportData, importData, clearAllData } = useWorkout();
   const [showSettings, setShowSettings] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -46,18 +46,6 @@ export const Header: React.FC<HeaderProps> = ({ onSelectTab }) => {
       }
     };
     reader.readAsText(file);
-  };
-
-  const handleLoadSample = () => {
-    if (workouts.length > 0) {
-      if (!confirm('This will load 4 progressive push day sessions to preview graphs and overload cues. Existing data will be preserved or merged. Continue?')) {
-        return;
-      }
-    }
-    loadSampleData();
-    showToast('Loaded progressive overload sample workouts!');
-    setShowSettings(false);
-    onSelectTab('progress');
   };
 
   const handleClearAll = () => {
@@ -161,22 +149,6 @@ export const Header: React.FC<HeaderProps> = ({ onSelectTab }) => {
             </p>
 
             <div className="space-y-3">
-              {/* Load Sample Data */}
-              <button
-                onClick={handleLoadSample}
-                className="w-full flex items-center justify-between p-3.5 rounded-xl bg-gradient-to-r from-blue-900/30 to-indigo-900/30 hover:from-blue-900/50 hover:to-indigo-900/50 border border-blue-700/40 text-left transition"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-600/20 text-blue-400 rounded-lg">
-                    <Sparkles size={18} />
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-white">Load Demo Progression Data</div>
-                    <div className="text-xs text-slate-400">Instantly test 4 weeks of bench, incline & OHP charts</div>
-                  </div>
-                </div>
-              </button>
-
               {/* Export JSON */}
               <button
                 onClick={handleExport}

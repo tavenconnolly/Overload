@@ -5,7 +5,9 @@ import {
   LoggedExercise, 
   WeightUnit, 
   ExerciseHistoryPoint,
-  MuscleGroup
+  MuscleGroup,
+  ActiveWorkoutDraft,
+  ExerciseSet
 } from '../types';
 import { DEFAULT_EXERCISES } from '../data/defaultExercises';
 
@@ -14,7 +16,12 @@ interface WorkoutContextType {
   workouts: Workout[];
   unit: WeightUnit;
   setUnit: (unit: WeightUnit) => void;
+  activeDraft: ActiveWorkoutDraft;
+  updateActiveDraft: (updater: Partial<ActiveWorkoutDraft> | ((prev: ActiveWorkoutDraft) => ActiveWorkoutDraft)) => void;
+  addExerciseToActiveDraft: (exerciseId: string) => void;
+  clearActiveDraft: () => void;
   addExercise: (name: string, muscleGroup: MuscleGroup, notes?: string) => Exercise;
+  updateExercise: (id: string, updates: Partial<Omit<Exercise, 'id'>>) => void;
   deleteExercise: (id: string) => void;
   saveWorkout: (workout: Omit<Workout, 'id' | 'createdAt'> & { id?: string }) => Workout;
   deleteWorkout: (id: string) => void;
@@ -23,7 +30,6 @@ interface WorkoutContextType {
   getExerciseById: (id: string) => Exercise | undefined;
   exportData: () => string;
   importData: (jsonStr: string) => boolean;
-  loadSampleData: () => void;
   clearAllData: () => void;
 }
 
@@ -31,6 +37,7 @@ const STORAGE_KEYS = {
   EXERCISES: 'overload_exercises_v1',
   WORKOUTS: 'overload_workouts_v1',
   UNIT: 'overload_unit_v1',
+  DRAFT: 'overload_active_workout_draft_v1',
 };
 
 const WorkoutContext = createContext<WorkoutContextType | undefined>(undefined);
@@ -74,6 +81,74 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return (localStorage.getItem(STORAGE_KEYS.UNIT) as WeightUnit) || 'lbs';
   });
 
+  const [activeDraft, setActiveDraft] = useState<ActiveWorkoutDraft>(() => {
+    const fallback: ActiveWorkoutDraft = {
+      title: 'Push Day',
+      date: new Date().toISOString().split('T')[0],
+      notes: '',
+      exercises: [],
+    };
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.DRAFT);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error('Failed to load draft from localStorage', e);
+    }
+    return fallback;
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEYS.DRAFT, JSON.stringify(activeDraft));
+    } catch (e) {
+      console.error('Failed to save draft to localStorage', e);
+    }
+  }, [activeDraft]);
+
+  const updateActiveDraft = (
+    updater: Partial<ActiveWorkoutDraft> | ((prev: ActiveWorkoutDraft) => ActiveWorkoutDraft)
+  ) => {
+    setActiveDraft((prev) => {
+      if (typeof updater === 'function') {
+        return updater(prev);
+      }
+      return { ...prev, ...updater };
+    });
+  };
+
+  const addExerciseToActiveDraft = (exerciseId: string) => {
+    setActiveDraft((prev) => {
+      const initialSets: ExerciseSet[] = [
+        { id: `set-${Date.now()}-1`, setNumber: 1, weight: 0, reps: 0, completed: false },
+        { id: `set-${Date.now()}-2`, setNumber: 2, weight: 0, reps: 0, completed: false },
+        { id: `set-${Date.now()}-3`, setNumber: 3, weight: 0, reps: 0, completed: false },
+      ];
+      const newLoggedEx: LoggedExercise = {
+        id: `logged-ex-${Date.now()}`,
+        exerciseId,
+        order: prev.exercises.length + 1,
+        sets: initialSets,
+      };
+      return {
+        ...prev,
+        exercises: [...prev.exercises, newLoggedEx],
+      };
+    });
+  };
+
+  const clearActiveDraft = () => {
+    const freshDraft: ActiveWorkoutDraft = {
+      title: 'Push Day',
+      date: new Date().toISOString().split('T')[0],
+      notes: '',
+      exercises: [],
+    };
+    setActiveDraft(freshDraft);
+    localStorage.removeItem(STORAGE_KEYS.DRAFT);
+  };
+
   // Sync to local storage
   useEffect(() => {
     try {
@@ -110,6 +185,12 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
     setExercises((prev) => [newEx, ...prev]);
     return newEx;
+  };
+
+  const updateExercise = (id: string, updates: Partial<Omit<Exercise, 'id'>>) => {
+    setExercises((prev) =>
+      prev.map((ex) => (ex.id === id ? { ...ex, ...updates } : ex))
+    );
   };
 
   const deleteExercise = (id: string) => {
@@ -256,169 +337,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   };
 
-  const loadSampleData = () => {
-    // Generate realistic progressive overload progression for 4 workouts over the last 3 weeks
-    const today = new Date();
-    const daysAgo = (days: number) => {
-      const d = new Date(today);
-      d.setDate(d.getDate() - days);
-      return d.toISOString().split('T')[0];
-    };
-
-    const sampleWorkouts: Workout[] = [
-      {
-        id: 'sample-w1',
-        title: 'Push Day - Progressive Overload #1',
-        date: daysAgo(21),
-        createdAt: Date.now() - 21 * 86400000,
-        exercises: [
-          {
-            id: 'se-1',
-            exerciseId: 'bb-bench-press',
-            order: 1,
-            sets: [
-              { id: 's1', setNumber: 1, weight: 175, reps: 8, completed: true },
-              { id: 's2', setNumber: 2, weight: 175, reps: 8, completed: true },
-              { id: 's3', setNumber: 3, weight: 175, reps: 7, completed: true },
-            ]
-          },
-          {
-            id: 'se-2',
-            exerciseId: 'incline-dumbbell-press',
-            order: 2,
-            sets: [
-              { id: 's4', setNumber: 1, weight: 60, reps: 10, completed: true },
-              { id: 's5', setNumber: 2, weight: 60, reps: 9, completed: true },
-              { id: 's6', setNumber: 3, weight: 60, reps: 8, completed: true },
-            ]
-          },
-          {
-            id: 'se-3',
-            exerciseId: 'bb-shoulder-press',
-            order: 3,
-            sets: [
-              { id: 's7', setNumber: 1, weight: 105, reps: 8, completed: true },
-              { id: 's8', setNumber: 2, weight: 105, reps: 8, completed: true },
-            ]
-          }
-        ]
-      },
-      {
-        id: 'sample-w2',
-        title: 'Push Day - Progressive Overload #2',
-        date: daysAgo(14),
-        createdAt: Date.now() - 14 * 86400000,
-        exercises: [
-          {
-            id: 'se-4',
-            exerciseId: 'bb-bench-press',
-            order: 1,
-            sets: [
-              { id: 's9', setNumber: 1, weight: 180, reps: 8, completed: true },
-              { id: 's10', setNumber: 2, weight: 180, reps: 8, completed: true },
-              { id: 's11', setNumber: 3, weight: 180, reps: 7, completed: true },
-            ]
-          },
-          {
-            id: 'se-5',
-            exerciseId: 'incline-dumbbell-press',
-            order: 2,
-            sets: [
-              { id: 's12', setNumber: 1, weight: 65, reps: 8, completed: true },
-              { id: 's13', setNumber: 2, weight: 65, reps: 8, completed: true },
-              { id: 's14', setNumber: 3, weight: 65, reps: 7, completed: true },
-            ]
-          },
-          {
-            id: 'se-6',
-            exerciseId: 'bb-shoulder-press',
-            order: 3,
-            sets: [
-              { id: 's15', setNumber: 1, weight: 110, reps: 8, completed: true },
-              { id: 's16', setNumber: 2, weight: 110, reps: 7, completed: true },
-            ]
-          }
-        ]
-      },
-      {
-        id: 'sample-w3',
-        title: 'Push Day - Progressive Overload #3',
-        date: daysAgo(7),
-        createdAt: Date.now() - 7 * 86400000,
-        exercises: [
-          {
-            id: 'se-7',
-            exerciseId: 'bb-bench-press',
-            order: 1,
-            sets: [
-              { id: 's17', setNumber: 1, weight: 185, reps: 8, completed: true },
-              { id: 's18', setNumber: 2, weight: 185, reps: 8, completed: true },
-              { id: 's19', setNumber: 3, weight: 185, reps: 8, completed: true },
-            ]
-          },
-          {
-            id: 'se-8',
-            exerciseId: 'incline-dumbbell-press',
-            order: 2,
-            sets: [
-              { id: 's20', setNumber: 1, weight: 65, reps: 10, completed: true },
-              { id: 's21', setNumber: 2, weight: 65, reps: 9, completed: true },
-              { id: 's22', setNumber: 3, weight: 65, reps: 9, completed: true },
-            ]
-          },
-          {
-            id: 'se-9',
-            exerciseId: 'bb-shoulder-press',
-            order: 3,
-            sets: [
-              { id: 's23', setNumber: 1, weight: 115, reps: 8, completed: true },
-              { id: 's24', setNumber: 2, weight: 115, reps: 8, completed: true },
-            ]
-          }
-        ]
-      },
-      {
-        id: 'sample-w4',
-        title: 'Push Day - Progressive Overload #4 (Latest)',
-        date: daysAgo(2),
-        createdAt: Date.now() - 2 * 86400000,
-        exercises: [
-          {
-            id: 'se-10',
-            exerciseId: 'bb-bench-press',
-            order: 1,
-            sets: [
-              { id: 's25', setNumber: 1, weight: 190, reps: 8, completed: true },
-              { id: 's26', setNumber: 2, weight: 190, reps: 7, completed: true },
-              { id: 's27', setNumber: 3, weight: 190, reps: 6, completed: true },
-            ]
-          },
-          {
-            id: 'se-28',
-            exerciseId: 'incline-dumbbell-press',
-            order: 2,
-            sets: [
-              { id: 's29', setNumber: 1, weight: 70, reps: 8, completed: true },
-              { id: 's30', setNumber: 2, weight: 70, reps: 7, completed: true },
-              { id: 's31', setNumber: 3, weight: 70, reps: 6, completed: true },
-            ]
-          },
-          {
-            id: 'se-32',
-            exerciseId: 'bb-shoulder-press',
-            order: 3,
-            sets: [
-              { id: 's33', setNumber: 1, weight: 120, reps: 7, completed: true },
-              { id: 's34', setNumber: 2, weight: 120, reps: 6, completed: true },
-            ]
-          }
-        ]
-      }
-    ];
-
-    setWorkouts(sampleWorkouts);
-  };
-
   const clearAllData = () => {
     setWorkouts([]);
     setExercises(DEFAULT_EXERCISES);
@@ -433,7 +351,12 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         workouts,
         unit,
         setUnit,
+        activeDraft,
+        updateActiveDraft,
+        addExerciseToActiveDraft,
+        clearActiveDraft,
         addExercise,
+        updateExercise,
         deleteExercise,
         saveWorkout,
         deleteWorkout,
@@ -442,7 +365,6 @@ export const WorkoutProvider: React.FC<{ children: React.ReactNode }> = ({ child
         getExerciseById,
         exportData,
         importData,
-        loadSampleData,
         clearAllData,
       }}
     >

@@ -13,7 +13,8 @@ import {
   Dumbbell,
   CheckCircle2,
   Layers,
-  AlertCircle
+  AlertCircle,
+  FileText
 } from 'lucide-react';
 import { useWorkout } from '../context/WorkoutContext';
 import { LoggedExercise, ExerciseSet, MuscleGroup } from '../types';
@@ -22,31 +23,65 @@ import { MUSCLE_GROUPS } from '../data/defaultExercises';
 interface WorkoutLoggerProps {
   onWorkoutSaved: () => void;
   onOpenRestTimer?: () => void;
-  onNavigateToExercises?: () => void;
 }
 
 export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({ 
   onWorkoutSaved,
-  onNavigateToExercises
 }) => {
   const { 
     exercises, 
     unit, 
     saveWorkout, 
     getLastLogForExercise, 
-    getExerciseById 
+    getExerciseById,
+    activeDraft,
+    updateActiveDraft,
+    clearActiveDraft,
+    addExercise
   } = useWorkout();
 
-  // Active workout state
-  const [workoutTitle, setWorkoutTitle] = useState('Push Day');
-  const [workoutDate, setWorkoutDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [workoutNotes, setWorkoutNotes] = useState('');
-  const [loggedExercises, setLoggedExercises] = useState<LoggedExercise[]>([]);
+  // Active workout state directly connected to persistent activeDraft in localStorage
+  const workoutTitle = activeDraft.title;
+  const setWorkoutTitle = (val: string) => updateActiveDraft({ title: val });
+
+  const workoutDate = activeDraft.date;
+  const setWorkoutDate = (val: string) => updateActiveDraft({ date: val });
+
+  const workoutNotes = activeDraft.notes;
+  const setWorkoutNotes = (val: string) => updateActiveDraft({ notes: val });
+
+  const loggedExercises = activeDraft.exercises;
+  const setLoggedExercises = (
+    updater: LoggedExercise[] | ((prev: LoggedExercise[]) => LoggedExercise[])
+  ) => {
+    updateActiveDraft((prev) => {
+      const nextExercises = typeof updater === 'function' ? updater(prev.exercises) : updater;
+      return { ...prev, exercises: nextExercises };
+    });
+  };
 
   // Modal for adding exercise to current workout
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   const [exerciseSearch, setExerciseSearch] = useState('');
   const [filterMuscle, setFilterMuscle] = useState<MuscleGroup | 'All'>('All');
+
+  // Inline custom exercise creation state inside the modal
+  const [isCreatingCustom, setIsCreatingCustom] = useState(false);
+  const [customName, setCustomName] = useState('');
+  const [customMuscle, setCustomMuscle] = useState<MuscleGroup>('Chest');
+  const [customNotes, setCustomNotes] = useState('');
+
+  const handleCreateAndAddCustom = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!customName.trim()) return;
+
+    const newEx = addExercise(customName.trim(), customMuscle, customNotes.trim() || undefined);
+    handleAddExerciseToWorkout(newEx.id);
+    setIsCreatingCustom(false);
+    setCustomName('');
+    setCustomNotes('');
+    setShowAddExerciseModal(false);
+  };
 
   // Success celebration state
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -190,13 +225,13 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({
       notes: workoutNotes.trim() || undefined,
     });
 
+    clearActiveDraft();
     setShowSuccessModal(true);
   };
 
   const handleFinishAndReset = () => {
     setShowSuccessModal(false);
-    setLoggedExercises([]);
-    setWorkoutNotes('');
+    clearActiveDraft();
     onWorkoutSaved();
   };
 
@@ -245,7 +280,7 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({
               <button
                 onClick={() => {
                   if (confirm('Discard current workout in progress?')) {
-                    setLoggedExercises([]);
+                    clearActiveDraft();
                   }
                 }}
                 className="text-xs text-slate-400 hover:text-red-400 px-3 py-2 rounded-xl transition"
@@ -282,6 +317,17 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({
               </button>
             )
           )}
+        </div>
+
+        {/* Optional session notes */}
+        <div className="mt-3">
+          <input
+            type="text"
+            placeholder="Add session notes (optional)..."
+            value={workoutNotes}
+            onChange={(e) => setWorkoutNotes(e.target.value)}
+            className="w-full bg-slate-950/60 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-slate-300 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+          />
         </div>
       </div>
 
@@ -361,6 +407,16 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({
                     </button>
                   </div>
                 </div>
+
+                {/* Exercise Setup Notes / Form Cues if present */}
+                {exerciseInfo?.notes && (
+                  <div className="mb-3 px-3 py-2 bg-amber-950/20 border border-amber-900/40 rounded-xl flex items-start gap-2 text-xs text-amber-300/90">
+                    <FileText size={14} className="text-amber-400 mt-0.5 shrink-0" />
+                    <span>
+                      <strong className="text-amber-200">Notes / Setup:</strong> {exerciseInfo.notes}
+                    </span>
+                  </div>
+                )}
 
                 {/* Requirement 3: Progressive Overload Banner (Previous Log & Target to Beat) */}
                 <div className="mb-4 p-3 bg-gradient-to-r from-slate-950 to-blue-950/20 border border-blue-900/30 rounded-xl">
@@ -604,103 +660,193 @@ export const WorkoutLogger: React.FC<WorkoutLoggerProps> = ({
             <div className="flex items-center justify-between pb-3 border-b border-slate-800">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <Plus size={18} className="text-blue-400" />
-                Select Exercise for #{loggedExercises.length + 1}
+                {isCreatingCustom
+                  ? 'Add Custom Exercise'
+                  : `Select Exercise for #${loggedExercises.length + 1}`}
               </h3>
               <button
-                onClick={() => setShowAddExerciseModal(false)}
+                onClick={() => {
+                  setShowAddExerciseModal(false);
+                  setIsCreatingCustom(false);
+                }}
                 className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
               >
                 <X size={18} />
               </button>
             </div>
 
-            {/* Filter controls */}
-            <div className="py-3 space-y-2.5">
-              <input
-                type="text"
-                autoFocus
-                placeholder="Search exercise..."
-                value={exerciseSearch}
-                onChange={(e) => setExerciseSearch(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
-              />
-
-              {/* Muscle Pills */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs scrollbar-none">
-                <button
-                  onClick={() => setFilterMuscle('All')}
-                  className={`px-2.5 py-1 rounded-lg border transition ${
-                    filterMuscle === 'All'
-                      ? 'bg-blue-600 text-white border-blue-500'
-                      : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
-                  }`}
-                >
-                  All
-                </button>
-                {MUSCLE_GROUPS.map((g) => (
-                  <button
-                    key={g}
-                    onClick={() => setFilterMuscle(g)}
-                    className={`px-2.5 py-1 rounded-lg border whitespace-nowrap transition ${
-                      filterMuscle === g
-                        ? 'bg-blue-600 text-white border-blue-500'
-                        : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
-                    }`}
-                  >
-                    {g}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Exercise list items */}
-            <div className="overflow-y-auto flex-1 divide-y divide-slate-800/60 pr-1">
-              {availableExercises.length === 0 ? (
-                <div className="text-center py-8 text-xs text-slate-500">
-                  No matching exercises.
+            {isCreatingCustom ? (
+              <form onSubmit={handleCreateAndAddCustom} className="py-4 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                    Exercise Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    autoFocus
+                    placeholder="e.g. Incline Smith Machine Press"
+                    value={customName}
+                    onChange={(e) => setCustomName(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition"
+                  />
                 </div>
-              ) : (
-                availableExercises.map((ex) => {
-                  const lastLog = getLastLogForExercise(ex.id);
-                  return (
-                    <button
-                      key={ex.id}
-                      onClick={() => handleAddExerciseToWorkout(ex.id)}
-                      className="w-full text-left py-2.5 px-3 rounded-xl hover:bg-slate-800/60 transition flex items-center justify-between group"
-                    >
-                      <div>
-                        <div className="text-sm font-semibold text-slate-200 group-hover:text-blue-400 transition">
-                          {ex.name}
-                        </div>
-                        <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500">
-                          <span>{ex.muscleGroup}</span>
-                          {lastLog && (
-                            <span className="text-blue-400">
-                              • Last logged: {lastLog.loggedExercise.sets[0]?.weight} {unit}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <ArrowRight size={16} className="text-slate-500 group-hover:text-blue-400 transition transform group-hover:translate-x-1" />
-                    </button>
-                  );
-                })
-              )}
-            </div>
 
-            {/* Link to create custom */}
-            <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
-              <span className="text-slate-500">Don't see your exercise?</span>
-              <button
-                onClick={() => {
-                  setShowAddExerciseModal(false);
-                  onNavigateToExercises?.();
-                }}
-                className="text-blue-400 hover:text-blue-300 font-semibold"
-              >
-                + Add Custom to Library
-              </button>
-            </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider">
+                    Target Muscle Group *
+                  </label>
+                  <select
+                    value={customMuscle}
+                    onChange={(e) => setCustomMuscle(e.target.value as MuscleGroup)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-blue-500 transition"
+                  >
+                    {MUSCLE_GROUPS.map((g) => (
+                      <option key={g} value={g}>
+                        {g}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileText size={13} className="text-blue-400" />
+                    <span>Setup Notes & Cues (Optional)</span>
+                  </label>
+                  <textarea
+                    rows={2}
+                    placeholder="e.g. Pin height 4, 30° bench incline, slow negative"
+                    value={customNotes}
+                    onChange={(e) => setCustomNotes(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition resize-none"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreatingCustom(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white transition"
+                  >
+                    Back to List
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!customName.trim()}
+                    className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-blue-600/30 transition"
+                  >
+                    <Check size={16} />
+                    <span>Save & Add to Workout</span>
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <>
+                {/* Filter controls */}
+                <div className="py-3 space-y-2.5">
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Search exercise..."
+                    value={exerciseSearch}
+                    onChange={(e) => setExerciseSearch(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                  />
+
+                  {/* Muscle Pills */}
+                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs scrollbar-none">
+                    <button
+                      onClick={() => setFilterMuscle('All')}
+                      className={`px-2.5 py-1 rounded-lg border transition ${
+                        filterMuscle === 'All'
+                          ? 'bg-blue-600 text-white border-blue-500'
+                          : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+                      }`}
+                    >
+                      All
+                    </button>
+                    {MUSCLE_GROUPS.map((g) => (
+                      <button
+                        key={g}
+                        onClick={() => setFilterMuscle(g)}
+                        className={`px-2.5 py-1 rounded-lg border whitespace-nowrap transition ${
+                          filterMuscle === g
+                            ? 'bg-blue-600 text-white border-blue-500'
+                            : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+                        }`}
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Exercise list items */}
+                <div className="overflow-y-auto flex-1 divide-y divide-slate-800/60 pr-1">
+                  {availableExercises.length === 0 ? (
+                    <div className="text-center py-8 px-4">
+                      <p className="text-xs text-slate-400 mb-3">
+                        No exercise found matching "{exerciseSearch}".
+                      </p>
+                      <button
+                        onClick={() => {
+                          setCustomName(exerciseSearch.trim());
+                          setCustomMuscle(filterMuscle !== 'All' ? filterMuscle : 'Chest');
+                          setIsCreatingCustom(true);
+                        }}
+                        className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition shadow-md"
+                      >
+                        <Plus size={15} />
+                        <span>Create "{exerciseSearch.trim() || 'Custom'}" & Add</span>
+                      </button>
+                    </div>
+                  ) : (
+                    availableExercises.map((ex) => {
+                      const lastLog = getLastLogForExercise(ex.id);
+                      return (
+                        <button
+                          key={ex.id}
+                          onClick={() => handleAddExerciseToWorkout(ex.id)}
+                          className="w-full text-left py-2.5 px-3 rounded-xl hover:bg-slate-800/60 transition flex items-center justify-between group"
+                        >
+                          <div>
+                            <div className="text-sm font-semibold text-slate-200 group-hover:text-blue-400 transition">
+                              {ex.name}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500">
+                              <span>{ex.muscleGroup}</span>
+                              {lastLog && (
+                                <span className="text-blue-400">
+                                  • Last logged: {lastLog.loggedExercise.sets[0]?.weight} {unit}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <ArrowRight size={16} className="text-slate-500 group-hover:text-blue-400 transition transform group-hover:translate-x-1" />
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Link to create custom */}
+                <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
+                  <span className="text-slate-500">Don't see your exercise?</span>
+                  <button
+                    onClick={() => {
+                      setCustomName(exerciseSearch.trim());
+                      setCustomMuscle(filterMuscle !== 'All' ? filterMuscle : 'Chest');
+                      setIsCreatingCustom(true);
+                    }}
+                    className="text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1"
+                  >
+                    <Plus size={14} />
+                    <span>Create Custom Exercise</span>
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

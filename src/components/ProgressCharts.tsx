@@ -6,7 +6,6 @@ import {
   Flame, 
   Calendar, 
   Dumbbell, 
-  Sparkles,
   Info
 } from 'lucide-react';
 import { 
@@ -33,7 +32,7 @@ export const ProgressCharts: React.FC<ProgressChartsProps> = ({
   initialExerciseId, 
   onLogWorkout 
 }) => {
-  const { exercises, unit, getExerciseHistory, loadSampleData, workouts } = useWorkout();
+  const { exercises, unit, getExerciseHistory, workouts } = useWorkout();
 
   // Find default selected exercise: initialExerciseId, or first exercise with history, or first exercise in library
   const defaultSelectedId = useMemo(() => {
@@ -259,27 +258,20 @@ export const ProgressCharts: React.FC<ProgressChartsProps> = ({
               No workout logs for "{selectedExercise?.name}" yet
             </h3>
             <p className="text-xs text-slate-400 max-w-sm mx-auto mb-6">
-              Log this exercise during your next workout to start tracking your progressive overload curve, or load sample demo data to preview the graph.
+              Log this exercise during your next workout to start tracking your progressive overload curve.
             </p>
 
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              {onLogWorkout && (
+            {onLogWorkout && (
+              <div className="flex items-center justify-center">
                 <button
                   onClick={onLogWorkout}
-                  className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center gap-2"
+                  className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl shadow-lg shadow-blue-600/30 transition flex items-center gap-2"
                 >
                   <Dumbbell size={16} />
                   <span>Log Workout Now</span>
                 </button>
-              )}
-              <button
-                onClick={loadSampleData}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold px-4 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-2"
-              >
-                <Sparkles size={16} className="text-yellow-400" />
-                <span>Load Demo Data to Preview</span>
-              </button>
-            </div>
+              </div>
+            )}
           </div>
         ) : (
           <div>

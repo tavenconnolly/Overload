@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { WorkoutProvider } from './context/WorkoutContext';
+import { WorkoutProvider, useWorkout } from './context/WorkoutContext';
 import { Header } from './components/Header';
 import { Navigation, TabType } from './components/Navigation';
 import { ExerciseLibrary } from './components/ExerciseLibrary';
@@ -10,6 +10,7 @@ import { WorkoutHistory } from './components/WorkoutHistory';
 const MainApp: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('log');
   const [selectedExerciseForGraph, setSelectedExerciseForGraph] = useState<string | undefined>(undefined);
+  const { addExerciseToActiveDraft } = useWorkout();
 
   const handleSelectForProgress = (exerciseId: string) => {
     setSelectedExerciseForGraph(exerciseId);
@@ -29,14 +30,14 @@ const MainApp: React.FC = () => {
         {activeTab === 'log' && (
           <WorkoutLogger 
             onWorkoutSaved={() => setActiveTab('history')}
-            onNavigateToExercises={() => setActiveTab('exercises')}
           />
         )}
 
         {activeTab === 'exercises' && (
           <ExerciseLibrary 
             onSelectForProgress={handleSelectForProgress}
-            onAddExerciseToActiveWorkout={() => {
+            onAddExerciseToActiveWorkout={(exerciseId) => {
+              addExerciseToActiveDraft(exerciseId);
               setActiveTab('log');
             }}
           />
